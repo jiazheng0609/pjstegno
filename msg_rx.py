@@ -4,6 +4,7 @@ import numpy as np
 from math import ceil, floor
 import sys
 
+
 def roundup(x: float, base: int = 1) -> int:
     return int(ceil(x / base)) * base
 
@@ -26,8 +27,8 @@ def reshape_bits(payload, num_lsb):
     return payload_bits, bit_height
 
 def write_file(filename, rcv_bytes):
-    ofile = open(filename, 'wb')
-    ofile.write(rcv_bytes)
+    with open(filename, 'wb') as ofile:
+        ofile.write(rcv_bytes)
 
 
 def my_lsb_deinterleave_bytes(carrier: bytes, num_lsb: int, byte_depth: int = 1) -> bytes:
@@ -45,14 +46,6 @@ def my_lsb_deinterleave_bytes(carrier: bytes, num_lsb: int, byte_depth: int = 1)
                                  ).reshape(plen, 8 * byte_depth)[:, 8 * byte_depth - num_lsb: 8 * byte_depth]
     return np.packbits(payload_bits).tobytes()
 
-def remove_preamble(payload, num_lsb):
-    prefix = b'\x55\xaa'
-    pos = payload.find(prefix)
-    payload = payload[pos:]
-    payload_bits, payload_sets = reshape_bits(payload, num_lsb)
-    prefix_bits, prefix_sets = reshape_bits(prefix, num_lsb)
-
-    return np.packbits(payload_bits[prefix_sets:]).tobytes()
 
 def recv_and_extract(num_lsb, byte_depth, secret_len):
     KEY = 81
@@ -90,7 +83,7 @@ def recv_and_extract(num_lsb, byte_depth, secret_len):
 
             print("firstb %x last %x" % (mtext[0], mtext[-1]))
             print(end_time - start_time, "len", cbit_height, "extracted",
-              "total extract", end_h)
+              "total extract", end_h, "byte", end_h * 8, "bit")
     except KeyboardInterrupt:
         pass
     except sysv_ipc.ExistentialError:

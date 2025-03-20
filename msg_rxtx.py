@@ -120,7 +120,7 @@ def main():
     while end_b < filelen * 8:
         end_b = recv_and_hide(filecontent, num_lsb, byte_depth, end_b)
 
-        print("Total", filelen * 8, "bits,", end_b, "hidden")
+        print("Total", filelen * 8, "bits,", end_b, "hidden,", end_b / 8, "byte")
 
 
 
