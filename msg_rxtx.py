@@ -62,6 +62,7 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     counter = 0
     hung_up = 0
     prefix = bytearray(b'\x55\xaa')
+    end_h_hist = [0, 0, 0]
 
 
     if end_b != 0:
@@ -72,13 +73,13 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
 
     print("total", hide_sets, "sets need to be hidden")
 
-    end_h = end_b // num_lsb
+    end_h = end_b // num_lsb 
 
     try:
         while True:
             mtext, mtype = rmq.receive(type=1)
 
-            cbit_height = len(mtext)
+            cbit_height = len(mtext) // byte_depth
             start_h = end_h
             if ((end_h + cbit_height) < hide_sets):
                 end_h = end_h + cbit_height
@@ -87,10 +88,13 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
             ret = my_lsb_interleave_byte(mtext, payload_bits, num_lsb, cbit_height, byte_depth, start_h, end_h)
 
 
+
             tmq.send(ret, block=False, type=1)
-            end_time = time.time()
+            end_h_hist[counter % 3] = end_h
             counter = counter + 1
-            print("carrierlen %d start_h %d end_h %d %.2f firstb %x last %x" % (cbit_height, start_h, end_h,
+            end_time = time.time()
+            print("carrierlen %d start_h %d end_h %d %d bits %.2f firstb %x last %x" % 
+                    (cbit_height, start_h, end_h, end_h * num_lsb,
                     end_h / hide_sets * 100, ret[0], ret[-1]))
             
     except KeyboardInterrupt:
@@ -103,14 +107,14 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
             rmq.remove()
             tmq.remove()
             print("queue removed")
-    return end_h * num_lsb
+    return end_h_hist[(counter - 2) % 3] * num_lsb - 16
 
 
 def main():
 
     filename = sys.argv[1] 
     num_lsb = 3
-    byte_depth = 1
+    byte_depth = 2
     start_b = 0
     end_b = 0
 
@@ -120,10 +124,9 @@ def main():
     print("hiding", filename, filelen, "bytes")
 
     while end_b < filelen * 8:
-        end_b = int(input("Where does receiving side end(in byte)? ")) * 8
-        filecontent = filecontent[end_b // 8:]
         end_b = end_b + recv_and_hide(filecontent, num_lsb, byte_depth, 0)
         print(f"Total {filelen*8} bits,  {end_b} hidden, {end_b/(filelen*8)}")
+        filecontent = filecontent[end_b // 8:]
 
 
 
