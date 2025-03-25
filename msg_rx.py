@@ -41,7 +41,7 @@ def my_lsb_deinterleave_bytes(carrier: bytes, num_lsb: int, byte_depth: int = 1)
     :return: The deinterleaved bytes
     """
 
-    plen = len(carrier)
+    plen = len(carrier) // byte_depth
     payload_bits = np.unpackbits(np.frombuffer(carrier, dtype=np.uint8, count=byte_depth * plen)
                                  ).reshape(plen, 8 * byte_depth)[:, 8 * byte_depth - num_lsb: 8 * byte_depth]
     return np.packbits(payload_bits).tobytes()
@@ -100,7 +100,7 @@ def main():
 
     filename = sys.argv[1]
     num_lsb = 3
-    byte_depth = 1
+    byte_depth = 2
     start_h = 0
     end_h = 0
     secret_len = int(sys.argv[2])
