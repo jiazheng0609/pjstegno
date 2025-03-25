@@ -117,15 +117,6 @@ def main():
 
 
 
-    print("continue to receive until call has ended")
-    try:
-        while True:
-            mtext, mtype = rmq.receive(type=1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        rmq.remove()
-        print("queue removed")
 
 if __name__ == '__main__':
     main()

@@ -61,10 +61,13 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     start_time = time.time()
     counter = 0
     hung_up = 0
-
-
     prefix = bytearray(b'\x55\xaa')
-    payload = prefix + payload
+
+
+    if end_b != 0:
+        payload = prefix + payload[end_b // 8:] 
+    else:
+        payload = prefix + payload
     payload_bits, hide_sets = reshape_bits(payload, num_lsb)
 
     print("total", hide_sets, "sets need to be hidden")
@@ -76,11 +79,10 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
             mtext, mtype = rmq.receive(type=1)
 
             cbit_height = len(mtext)
+            start_h = end_h
             if ((end_h + cbit_height) < hide_sets):
-                start_h = end_h
                 end_h = end_h + cbit_height
             else:
-                start_h = end_h
                 end_h = hide_sets
             ret = my_lsb_interleave_byte(mtext, payload_bits, num_lsb, cbit_height, byte_depth, start_h, end_h)
 
@@ -118,9 +120,11 @@ def main():
     print("hiding", filename, filelen, "bytes")
 
     while end_b < filelen * 8:
-        end_b = recv_and_hide(filecontent, num_lsb, byte_depth, end_b)
+        end_b = int(input("Where does receiving side end(in byte)? ")) * 8
+        filecontent = filecontent[end_b // 8:]
+        end_b = end_b + recv_and_hide(filecontent, num_lsb, byte_depth, 0)
+        print(f"Total {filelen*8} bits,  {end_b} hidden, {end_b/(filelen*8)}")
 
-        print("Total", filelen * 8, "bits,", end_b, "hidden,", end_b / 8, "byte")
 
 
 
