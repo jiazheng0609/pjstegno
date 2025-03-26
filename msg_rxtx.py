@@ -110,18 +110,16 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     return end_h_hist[(counter - 2) % 3] * num_lsb - 16
 
 
-def main():
-
-    filename = sys.argv[1] 
+def inject_loop(secret_filename):
     num_lsb = 3
     byte_depth = 2
     start_b = 0
     end_b = 0
 
-    ifile = open(filename, 'rb')
+    ifile = open(secret_filename, 'rb')
     filecontent = ifile.read()
     filelen = len(filecontent)
-    print("hiding", filename, filelen, "bytes")
+    print("hiding", secret_filename, filelen, "bytes")
 
     while end_b < filelen * 8:
         end_b = end_b + recv_and_hide(filecontent, num_lsb, byte_depth, 0)
@@ -132,4 +130,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    inject_loop(sys.argv[1])

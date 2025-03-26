@@ -96,14 +96,13 @@ def recv_and_extract(num_lsb, byte_depth, secret_len):
 
     return decoded, end_h
 
-def main():
+def extract_loop(secret_filename, secret_len):
 
     filename = sys.argv[1]
     num_lsb = 3
     byte_depth = 2
     start_h = 0
     end_h = 0
-    secret_len = int(sys.argv[2])
     decoded = b''
     secret_byte = bytearray(b'')
     extract_sets = secret_len // num_lsb
@@ -119,4 +118,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    secret_len = int(sys.argv[2])
+    extract_loop(sys.argv[1], secret_len)
