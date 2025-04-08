@@ -3,6 +3,7 @@ import time
 import numpy as np
 from math import ceil, floor
 import sys
+import hashlib
 
 
 def roundup(x: float, base: int = 1) -> int:
@@ -100,7 +101,7 @@ def extract_loop(secret_filename, secret_len):
 
     filename = sys.argv[1]
     num_lsb = 3
-    byte_depth = 2
+    byte_depth = 1
     start_h = 0
     end_h = 0
     decoded = b''
@@ -113,10 +114,16 @@ def extract_loop(secret_filename, secret_len):
 
     write_file(filename, secret_byte[:secret_len])
     print("wrote to file:", filename)
+    md5val = hashlib.md5(secret_byte[:secret_len]).hexdigest()
+    print(f"MD5: {md5val}")
 
 
 
 
 if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        print(f"Usage: {sys.argv[0]} filename size(bytes)")
+        exit(1)
+
     secret_len = int(sys.argv[2])
     extract_loop(sys.argv[1], secret_len)

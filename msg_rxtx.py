@@ -3,6 +3,7 @@ import time
 import numpy as np
 from math import ceil, floor
 import sys
+import hashlib
 
 def roundup(x: float, base: int = 1) -> int:
     return int(ceil(x / base)) * base
@@ -112,13 +113,14 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
 
 def inject_loop(secret_filename):
     num_lsb = 3
-    byte_depth = 2
+    byte_depth = 1
     start_b = 0
     end_b = 0
 
     ifile = open(secret_filename, 'rb')
     filecontent = ifile.read()
     filelen = len(filecontent)
+    md5val = hashlib.md5(filecontent).hexdigest()
     print("hiding", secret_filename, filelen, "bytes")
 
     while end_b < filelen * 8:
@@ -126,8 +128,12 @@ def inject_loop(secret_filename):
         print(f"Total {filelen*8} bits,  {end_b} hidden, {end_b/(filelen*8)}")
         filecontent = filecontent[end_b // 8:]
 
-
+    print(f"{secret_filename} MD5: {md5val}")
 
 
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} filename")
+        exit(1)
+
     inject_loop(sys.argv[1])
