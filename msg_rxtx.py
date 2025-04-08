@@ -4,6 +4,7 @@ import numpy as np
 from math import ceil, floor
 import sys
 import hashlib
+import logging
 
 def roundup(x: float, base: int = 1) -> int:
     return int(ceil(x / base)) * base
@@ -94,20 +95,28 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
             end_h_hist[counter % 3] = end_h
             counter = counter + 1
             end_time = time.time()
-            print("carrierlen %d start_h %d end_h %d %d bits %.2f firstb %x last %x" % 
+            logging.debug("carrierlen %d start_h %d end_h %d %d bits %.2f firstb %x last %x" % 
                     (cbit_height, start_h, end_h, end_h * num_lsb,
                     end_h / hide_sets * 100, ret[0], ret[-1]))
+            if end_h == hide_sets:
+                break
+
+        logging.info("transmission of secret completed, continue to receive until the phone hung up")
+
+        while True:
+            mtext, mtype = rmq.receive(type=1)
+            tmq.send(ret, block=False, type=1)
             
     except KeyboardInterrupt:
         pass
     except sysv_ipc.ExistentialError:
-        print("phone hung up")
+        logging.info("phone hung up")
         hung_up = 1
     finally:
         if not hung_up:
             rmq.remove()
             tmq.remove()
-            print("queue removed")
+            logging.info("queue removed")
     return end_h_hist[(counter - 2) % 3] * num_lsb - 16
 
 
@@ -117,6 +126,7 @@ def inject_loop(secret_filename):
     start_b = 0
     end_b = 0
 
+    logging.basicConfig(level=logging.INFO)
     ifile = open(secret_filename, 'rb')
     filecontent = ifile.read()
     filelen = len(filecontent)

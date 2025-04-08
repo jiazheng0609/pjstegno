@@ -4,6 +4,7 @@ import numpy as np
 from math import ceil, floor
 import sys
 import hashlib
+import logging
 
 
 def roundup(x: float, base: int = 1) -> int:
@@ -31,6 +32,12 @@ def write_file(filename, rcv_bytes):
     with open(filename, 'wb') as ofile:
         ofile.write(rcv_bytes)
 
+def print_realtime_text(decode_one):
+    try:
+        text = str(decode_one, "utf-8")
+        print(text, end='', flush=True)
+    except UnicodeDecodeError:
+        pass
 
 def my_lsb_deinterleave_bytes(carrier: bytes, num_lsb: int, byte_depth: int = 1) -> bytes:
     """
@@ -50,15 +57,16 @@ def my_lsb_deinterleave_bytes(carrier: bytes, num_lsb: int, byte_depth: int = 1)
 
 def recv_and_extract(num_lsb, byte_depth, secret_len):
     KEY = 81
-    print("KEY:", KEY)
+    logging.info(f"{KEY=}")
     rmq = sysv_ipc.MessageQueue(KEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
-    print("id:", rmq.id)
-    print("ready to receive messages.")
+    logging.info(f"{rmq.id=}")
+    logging.info("ready to receive messages.")
     start_time = time.time()
     counter = 0
     end_h = 0
     hung_up = 0
     found_start = 0
+    print_realtime = 1
     decoded = b''
 
     try:
@@ -68,37 +76,38 @@ def recv_and_extract(num_lsb, byte_depth, secret_len):
             dec_one = my_lsb_deinterleave_bytes(mtext, num_lsb, byte_depth)
             if not found_start:
                 if b'\x55\xaa' in dec_one:
-                    print("found preamble")
+                    logging.info("found preamble")
                     pos = dec_one.find(b'\x55\xaa')
                     dec_one = dec_one[pos+len(b'\x55\xaa'):]
                     found_start = 1
                 else:
-                    print("waiting preamble")
+                    logging.info("waiting preamble")
                     continue
 
+            if print_realtime:
+                print_realtime_text(dec_one)
             decoded = decoded + dec_one
             cbit_height = len(dec_one)
             end_h = end_h + cbit_height
             
             end_time = time.time()
 
-            print("firstb %x last %x" % (mtext[0], mtext[-1]))
-            print(end_time - start_time, "len", cbit_height, "extracted",
+            logging.debug(end_time - start_time, "len", cbit_height, "extracted",
               "total extract", end_h, "byte", end_h * 8, "bit")
     except KeyboardInterrupt:
         pass
     except sysv_ipc.ExistentialError:
-        print("phone hung up")
+        logging.info("phone hung up")
         hung_up = 1
     finally:
         if not hung_up:
             rmq.remove()
-            print("queue removed")
+            logging.info("queue removed")
 
     return decoded, end_h
 
 def extract_loop(secret_filename, secret_len):
-
+    logging.basicConfig(level=logging.INFO)
     filename = sys.argv[1]
     num_lsb = 3
     byte_depth = 1
