@@ -17,11 +17,11 @@ def reshape_bits(payload):
     bitsInPi = bitsInPi * -np.pi / 2
    
     hide_sets = len(payload_bits)
-    return payload_bits, hide_sets
+    return bitsInPi, hide_sets
 
 def hide(carrier, payload_bits, start_h, end_h):
     dec_one = g711.decode_ulaw(carrier)
-    chunkSize = 160# temp val
+    chunkSize = 160
     numberOfChunks = int(np.ceil(dec_one.shape[0] / chunkSize))
     audioData = dec_one.copy()
 
@@ -44,11 +44,13 @@ def hide(carrier, payload_bits, start_h, end_h):
  
     
     midChunk = chunkSize // 2
-    textLength = 56
+    textLength = end_h - start_h
+    print(f"{textLength=} {start_h=} {end_h=}")
 
     
     # Phase conversion
     phases[0, midChunk - textLength: midChunk] = payload_bits[start_h:end_h]
+    print(payload_bits[start_h:end_h])
     phases[0, midChunk + 1: midChunk + 1 + textLength] = -payload_bits[start_h:end_h][::-1]
 
     # Compute the phase matrix
@@ -63,6 +65,24 @@ def hide(carrier, payload_bits, start_h, end_h):
     ret = g711.encode_ulaw(audioData)
     
     return ret, audioData[0]
+
+def decode(carrier: bytes) -> bytes:
+    textLength = 56
+    blockLength = 160
+    blockMid = blockLength // 2
+    # Get header info
+
+    code = g711.decode_ulaw(carrier)
+
+    # Get the phase and convert it to binary
+    codePhases = np.angle(np.fft.fft(code))[blockMid - textLength:blockMid]
+    codeInBinary = (codePhases < 0).astype(np.int16)
+
+    # Convert into characters
+    codeInIntCode = codeInBinary.reshape((-1, 8)).dot(1 << np.arange(8 - 1, -1, -1))
+
+    # Combine characters to original text
+    return "".join(np.char.mod("%c", codeInIntCode))
 
 def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     KEY = 81
@@ -80,10 +100,10 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     
 
 
-    if end_b != 0:
-        payload = prefix + payload[end_b // 8:] 
-    else:
-        payload = prefix + payload
+    #if end_b != 0:
+    #    payload = prefix + payload[end_b // 8:] 
+    #else:
+    #    payload = prefix + payload
     payload_bits, hide_sets = reshape_bits(payload)
 
     print("total", hide_sets, "sets need to be hidden")
@@ -101,6 +121,7 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
             else:
                 end_h = hide_sets
             ret, audioData = hide(mtext, payload_bits, start_h, end_h)
+            print(decode(ret))
             if counter == 0:
                 audioOut = audioData
             else:
@@ -121,7 +142,7 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
 
         while True:
             mtext, mtype = rmq.receive(type=1)
-            tmq.send(ret, block=False, type=1)
+            tmq.send(mtext, block=False, type=1)
             
     except KeyboardInterrupt:
         pass
@@ -134,7 +155,7 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
             rmq.remove()
             tmq.remove()
             logging.info("queue removed")
-    return end_h_hist[(counter - 2) % 3] * num_lsb - 16
+    return end_h_hist[(counter - 2) % 3] 
 
 
 def inject_loop(secret_filename):
