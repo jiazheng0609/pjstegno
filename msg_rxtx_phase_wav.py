@@ -5,52 +5,64 @@ from math import ceil, floor
 import sys
 import hashlib
 import logging
+import g711
+from scipy.io import wavfile
 
-def roundup(x: float, base: int = 1) -> int:
-    return int(ceil(x / base)) * base
-
-def reshape_bits(payload, num_lsb):
-    """
-    Interleave the bytes of payload into the num_lsb LSBs of carrier.
-
-    :param payload: secret payload
-    :param num_lsb: number of least significant bits to use
-    :return: Bits arranged
-    """
+def reshape_bits(payload):
     plen = len(payload)
-    bit_height = roundup(plen * 8 / num_lsb)
+    payload_bits = np.unpackbits(np.frombuffer(payload, dtype=np.uint8, count=plen))
+    bitsInPi = payload_bits.astype(np.int64)
+    
+    bitsInPi[payload_bits == 0] = -1
+    bitsInPi = bitsInPi * -np.pi / 2
+   
+    hide_sets = len(payload_bits)
+    return payload_bits, hide_sets
 
-    payload_bits = np.zeros(shape=(plen, 8), dtype=np.uint8)
-    payload_bits[:plen, :] = np.unpackbits(np.frombuffer(payload, dtype=np.uint8, count=plen)).reshape(plen, 8)
-    payload_bits.resize(bit_height * num_lsb)
-    payload_bits = payload_bits.reshape(bit_height, num_lsb)
+def hide(carrier, payload_bits, start_h, end_h):
+    dec_one = g711.decode_ulaw(carrier)
+    chunkSize = 160# temp val
+    numberOfChunks = int(np.ceil(dec_one.shape[0] / chunkSize))
+    audioData = dec_one.copy()
 
-    return payload_bits, bit_height
-
-def my_lsb_interleave_byte(carrier, payload_bits, num_lsb, bit_height, byte_depth, start_h, end_h):
-    """
-    Interleave the bytes of payload into the num_lsb LSBs of carrier.
-
-    :param carrier: carrier bytes
-    :param byte_depth: byte depth of carrier values
-    :return: The interleaved bytes
-    """
-    carrier_bits = np.unpackbits(np.frombuffer(carrier, dtype=np.uint8, count=byte_depth * bit_height)
-                              ).reshape(bit_height, 8 * byte_depth)
-    hides = end_h - start_h
-    if (hides < len(carrier_bits)):
-        carrier_bits[:hides, 8 * byte_depth - num_lsb: 8 * byte_depth] = payload_bits[start_h:end_h]
+    #Breaking the Audio into chunks
+    if len(dec_one.shape) == 1:
+      audioData.resize(numberOfChunks * chunkSize, refcheck=False)
+      audioData = audioData[np.newaxis]
     else:
-        carrier_bits[:, 8 * byte_depth - num_lsb: 8 * byte_depth] = payload_bits[start_h:end_h]
-    ret = np.packbits(carrier_bits).tobytes() + carrier[byte_depth * bit_height:]
-    return ret
+      audioData.resize((numberOfChunks * chunkSize, audioData.shape[1]), refcheck=False)
+      audioData = audioData.T
 
-def insert_preamble(payload_bits, payload_sets, num_lsb):
-    prefix = bytearray(b'\x55\xaa')
-    prefix_bits, prefix_sets = reshape_bits(prefix, num_lsb)
-    payload_bits = np.concatenate((prefix_bits, payload_bits), axis=0)
-    payload_sets = prefix_sets + payload_sets
-    return payload_bits, payload_sets
+    chunks = audioData[0].reshape((numberOfChunks, chunkSize))
+
+
+    #Applying DFT on audio chunks
+    chunks = np.fft.fft(chunks)
+    magnitudes = np.abs(chunks)
+    phases = np.angle(chunks)
+    phaseDiff = np.diff(phases, axis=0)
+ 
+    
+    midChunk = chunkSize // 2
+    textLength = 56
+
+    
+    # Phase conversion
+    phases[0, midChunk - textLength: midChunk] = payload_bits[start_h:end_h]
+    phases[0, midChunk + 1: midChunk + 1 + textLength] = -payload_bits[start_h:end_h][::-1]
+
+    # Compute the phase matrix
+    for i in range(1, len(phases)):
+        phases[i] = phases[i - 1] + phaseDiff[i - 1]
+        
+    # Apply Inverse fourier trnasform after applying phase differences
+    chunks = (magnitudes * np.exp(1j * phases))
+    chunks = np.fft.ifft(chunks).real
+    # Combining all block of audio again
+    audioData[0] = chunks.ravel()
+    ret = g711.encode_ulaw(audioData)
+    
+    return ret, audioData[0]
 
 def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     KEY = 81
@@ -65,13 +77,14 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     hung_up = 0
     prefix = bytearray(b'\x55\xaa')
     end_h_hist = [0, 0, 0]
+    
 
 
     if end_b != 0:
         payload = prefix + payload[end_b // 8:] 
     else:
         payload = prefix + payload
-    payload_bits, hide_sets = reshape_bits(payload, num_lsb)
+    payload_bits, hide_sets = reshape_bits(payload)
 
     print("total", hide_sets, "sets need to be hidden")
 
@@ -81,14 +94,17 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
         while True:
             mtext, mtype = rmq.receive(type=1)
 
-            cbit_height = len(mtext) // byte_depth
+            cbit_height = 56
             start_h = end_h
             if ((end_h + cbit_height) < hide_sets):
                 end_h = end_h + cbit_height
             else:
                 end_h = hide_sets
-            ret = my_lsb_interleave_byte(mtext, payload_bits, num_lsb, cbit_height, byte_depth, start_h, end_h)
-
+            ret, audioData = hide(mtext, payload_bits, start_h, end_h)
+            if counter == 0:
+                audioOut = audioData
+            else:
+                audioOut = np.append(audioOut, audioData)
 
 
             tmq.send(ret, block=False, type=1)
@@ -105,7 +121,7 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
 
         while True:
             mtext, mtype = rmq.receive(type=1)
-            tmq.send(mtext, block=False, type=1)
+            tmq.send(ret, block=False, type=1)
             
     except KeyboardInterrupt:
         pass
@@ -113,6 +129,7 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
         logging.info("phone hung up")
         hung_up = 1
     finally:
+        wavfile.write("phaseout.wav", 8000, audioOut)
         if not hung_up:
             rmq.remove()
             tmq.remove()
@@ -126,7 +143,7 @@ def inject_loop(secret_filename):
     start_b = 0
     end_b = 0
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     ifile = open(secret_filename, 'rb')
     filecontent = ifile.read()
     filelen = len(filecontent)
