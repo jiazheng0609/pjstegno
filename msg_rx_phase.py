@@ -35,7 +35,7 @@ def write_file(filename, rcv_bytes):
 
 def print_realtime_text(decode_one):
     try:
-        text = decode_one
+        text = str(decode_one, "utf-8")
         print(text, end='', flush=True)
     except UnicodeDecodeError:
         pass
@@ -52,11 +52,7 @@ def decode(carrier: bytes) -> bytes:
     codePhases = np.angle(np.fft.fft(code))[blockMid - textLength:blockMid]
     codeInBinary = (codePhases < 0).astype(np.int16)
 
-    # Convert into characters
-    codeInIntCode = codeInBinary.reshape((-1, 8)).dot(1 << np.arange(8 - 1, -1, -1))
-
-    # Combine characters to original text
-    return "".join(np.char.mod("%c", codeInIntCode))
+    return np.packbits(codeInBinary).tobytes()
 
 
 def recv_and_extract(secret_len):
@@ -71,7 +67,7 @@ def recv_and_extract(secret_len):
     hung_up = 0
     found_start = 0
     print_realtime = 1
-    decoded = ""
+    decoded = b''
 
     try:
         while end_h < secret_len:
@@ -110,18 +106,19 @@ def recv_and_extract(secret_len):
     return decoded, end_h
 
 def extract_loop(secret_filename, secret_len):
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     filename = sys.argv[1]
     start_h = 0
     end_h = 0
-    decoded = ""
+    decoded = b''
     secret_byte = bytearray(b'')
 
     while (end_h < secret_len):
         decoded, end_h = recv_and_extract(secret_len)
         secret_byte.extend(decoded)
 
-    write_file(filename, secret_byte[:secret_len])
+    #write_file(filename, secret_byte[:secret_len])
+    write_file(filename, secret_byte)
     print("wrote to file:", filename)
     md5val = hashlib.md5(secret_byte[:secret_len]).hexdigest()
     print(f"MD5: {md5val}")
