@@ -92,8 +92,7 @@ def recv_and_extract(num_lsb, byte_depth, secret_len):
             
             end_time = time.time()
 
-            logging.debug(end_time - start_time, "len", cbit_height, "extracted",
-              "total extract", end_h, "byte", end_h * 8, "bit")
+            logging.debug(f"{end_time - start_time} {cbit_height} extracted total extract {end_h} byte, {end_h * 8} bit")
     except KeyboardInterrupt:
         pass
     except sysv_ipc.ExistentialError:
@@ -107,7 +106,7 @@ def recv_and_extract(num_lsb, byte_depth, secret_len):
     return decoded, end_h
 
 def extract_loop(secret_filename, secret_len):
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     filename = sys.argv[1]
     num_lsb = 3
     byte_depth = 1
