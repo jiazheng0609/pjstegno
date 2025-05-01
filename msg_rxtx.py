@@ -11,8 +11,8 @@ def roundup(x: float, base: int = 1) -> int:
 
 def reshape_bits(payload, num_lsb):
     """
-    Interleave the bytes of payload into the num_lsb LSBs of carrier.
-
+    Agrrange payload bytes into groups of lsb bits.
+ 
     :param payload: secret payload
     :param num_lsb: number of least significant bits to use
     :return: Bits arranged
@@ -29,10 +29,14 @@ def reshape_bits(payload, num_lsb):
 
 def my_lsb_interleave_byte(carrier, payload_bits, num_lsb, bit_height, byte_depth, start_h, end_h):
     """
-    Interleave the bytes of payload into the num_lsb LSBs of carrier.
+    Interleave the payload bits into the num_lsb LSBs of carrier.
 
     :param carrier: carrier bytes
+    :param payload_bits: bits arranged by reshape_bits()
+    :param num_lsb: number of least significant bits to use
     :param byte_depth: byte depth of carrier values
+    :param start_h: start point of payload to be hidden
+    :param end_h: end point of payload to be hidden
     :return: The interleaved bytes
     """
     carrier_bits = np.unpackbits(np.frombuffer(carrier, dtype=np.uint8, count=byte_depth * bit_height)
@@ -44,13 +48,6 @@ def my_lsb_interleave_byte(carrier, payload_bits, num_lsb, bit_height, byte_dept
         carrier_bits[:, 8 * byte_depth - num_lsb: 8 * byte_depth] = payload_bits[start_h:end_h]
     ret = np.packbits(carrier_bits).tobytes() + carrier[byte_depth * bit_height:]
     return ret
-
-def insert_preamble(payload_bits, payload_sets, num_lsb):
-    prefix = bytearray(b'\x55\xaa')
-    prefix_bits, prefix_sets = reshape_bits(prefix, num_lsb)
-    payload_bits = np.concatenate((prefix_bits, payload_bits), axis=0)
-    payload_sets = prefix_sets + payload_sets
-    return payload_bits, payload_sets
 
 def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     KEY = 81
