@@ -109,12 +109,16 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     except sysv_ipc.ExistentialError:
         logging.info("phone hung up")
         hung_up = 1
+        if end_h == hide_sets:
+            return end_h * num_lsb
+        else:
+            return end_h_hist[(counter - 2)% 3] * num_lsb - 16
     finally:
         if not hung_up:
             rmq.remove()
             tmq.remove()
             logging.info("queue removed")
-    return end_h_hist[(counter - 2) % 3] * num_lsb - 16
+    return end_h * num_lsb
 
 
 def inject_loop(secret_filename):
