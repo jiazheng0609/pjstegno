@@ -13,7 +13,7 @@ def count_ber(bits1, bits2):
     for i in range(len(bits1)):
         if bits1[i] != bits2[i]:
             error = error + 1
-    return error
+    return error, error / len(bits1)
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -29,6 +29,6 @@ if __name__ == '__main__':
     bits1 = reshape_bits(filecontent1)
     bits2 = reshape_bits(filecontent2)
 
-    errors = count_ber(bits1, bits2)
-    ber = errors / len(bits1)
+    errors, ber = count_ber(bits1, bits2)
+
     print(f"{len(bits1)=} {errors=} bit_error_rate={ber}")
