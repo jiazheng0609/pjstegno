@@ -16,7 +16,7 @@ def reshape_bits(payload):
     bitsInPi[payload_bits == 0] = -1
     bitsInPi = bitsInPi * -np.pi / 2
    
-    hide_sets = len(payload_bits)
+    hide_sets = len(bitsInPi)
     return bitsInPi, hide_sets
 
 def hide(carrier, payload_bits, start_h, end_h):
@@ -66,24 +66,6 @@ def hide(carrier, payload_bits, start_h, end_h):
     
     return ret, audioData[0]
 
-def decode(carrier: bytes) -> bytes:
-    textLength = 56
-    blockLength = 160
-    blockMid = blockLength // 2
-    # Get header info
-
-    code = g711.decode_ulaw(carrier)
-
-    # Get the phase and convert it to binary
-    codePhases = np.angle(np.fft.fft(code))[blockMid - textLength:blockMid]
-    codeInBinary = (codePhases < 0).astype(np.int16)
-
-    # Convert into characters
-    codeInIntCode = codeInBinary.reshape((-1, 8)).dot(1 << np.arange(8 - 1, -1, -1))
-
-    # Combine characters to original text
-    return "".join(np.char.mod("%c", codeInIntCode))
-
 def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     KEY = 81
     TKEY = 82
@@ -103,7 +85,8 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
     #if end_b != 0:
     #    payload = prefix + payload[end_b // 8:] 
     #else:
-    #    payload = prefix + payload
+    #    
+    payload = prefix + payload
     payload_bits, hide_sets = reshape_bits(payload)
 
     print("total", hide_sets, "sets need to be hidden")
@@ -121,7 +104,6 @@ def recv_and_hide(payload, num_lsb, byte_depth, end_b):
             else:
                 end_h = hide_sets
             ret, audioData = hide(mtext, payload_bits, start_h, end_h)
-            print(decode(ret))
             if counter == 0:
                 audioOut = audioData
             else:

@@ -74,15 +74,15 @@ def recv_and_extract(secret_len):
             mtext, mtype = rmq.receive(type=1)
 
             dec_one = decode(mtext)
-            #if not found_start:
-            #    if b'\x55\xaa' in dec_one:
-            #        logging.info("found preamble")
-            #        pos = dec_one.find(b'\x55\xaa')
-            #        dec_one = dec_one[pos+len(b'\x55\xaa'):]
-            #        found_start = 1
-            #    else:
-            #        logging.info("waiting preamble")
-            #        continue
+            if not found_start:
+                if b'\x55\xaa' in dec_one:
+                    logging.info("found preamble")
+                    pos = dec_one.find(b'\x55\xaa')
+                    dec_one = dec_one[pos+len(b'\x55\xaa'):]
+                    found_start = 1
+                else:
+                    logging.info("waiting preamble")
+                    continue
 
             if print_realtime:
                 print_realtime_text(dec_one)
