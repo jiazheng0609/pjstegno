@@ -5,6 +5,7 @@ from math import ceil, floor
 import sys
 import hashlib
 import logging
+import g711
 from abc import ABC, abstractmethod
 
 class PJStegno:
@@ -168,6 +169,76 @@ class LSBEncoder(Encoder):
         return int(ceil(x))
 
 
+class PhaseEncoder(Encoder):
+    def __init__(self):
+        pass
+
+    def cbit_height(self, payloadlen):
+        return 56
+
+    def end_h(self, end_b):
+        return end_b
+
+    def end_b(self, end_h):
+        return end_h
+        
+    def reshape_bits(self, payload):
+        plen = len(payload)
+        payload_bits = np.unpackbits(np.frombuffer(payload, dtype=np.uint8, count=plen))
+        bitsInPi = payload_bits.astype(np.int64)
+
+        bitsInPi[payload_bits == 0] = -1
+        bitsInPi = bitsInPi * -np.pi / 2
+
+        hide_sets = len(bitsInPi)
+        return bitsInPi, hide_sets
+
+    def hide(self, carrier, payload_bits, _, start_h, end_h):
+        dec_one = g711.decode_ulaw(carrier)
+        chunkSize = 160
+        numberOfChunks = int(np.ceil(dec_one.shape[0] / chunkSize))
+        audioData = dec_one.copy()
+
+        #Breaking the Audio into chunks
+        if len(dec_one.shape) == 1:
+            audioData.resize(numberOfChunks * chunkSize, refcheck=False)
+            audioData = audioData[np.newaxis]
+        else:
+            audioData.resize((numberOfChunks * chunkSize, audioData.shape[1]), refcheck=False)
+            audioData = audioData.T
+
+        chunks = audioData[0].reshape((numberOfChunks, chunkSize))
+
+
+        #Applying DFT on audio chunks
+        chunks = np.fft.fft(chunks)
+        magnitudes = np.abs(chunks)
+        phases = np.angle(chunks)
+        phaseDiff = np.diff(phases, axis=0)
+
+
+        midChunk = chunkSize // 2
+        textLength = end_h - start_h
+        print(f"{textLength=} {start_h=} {end_h=}")
+
+
+        # Phase conversion
+        phases[0, midChunk - textLength: midChunk] = payload_bits[start_h:end_h]
+        #print(payload_bits[start_h:end_h])
+        phases[0, midChunk + 1: midChunk + 1 + textLength] = -payload_bits[start_h:end_h][::-1]
+
+        # Compute the phase matrix
+        for i in range(1, len(phases)):
+            phases[i] = phases[i - 1] + phaseDiff[i - 1]
+            
+        # Apply Inverse fourier trnasform after applying phase differences
+        chunks = (magnitudes * np.exp(1j * phases))
+        chunks = np.fft.ifft(chunks).real
+        # Combining all block of audio again
+        audioData[0] = chunks.ravel()
+        ret = g711.encode_ulaw(audioData)
+
+        return ret
 
 
 
@@ -184,6 +255,7 @@ if __name__ == '__main__':
     byte_depth = 1
 
     receiver = PJStegno()
-    encoder = LSBEncoder(num_lsb, byte_depth)
+    #encoder = LSBEncoder(num_lsb, byte_depth)
+    encoder = PhaseEncoder()
     receiver.inject_loop(encoder, sys.argv[1])
     
