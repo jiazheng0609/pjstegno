@@ -64,7 +64,7 @@ class PJStegno:
                     end_h = end_h + cbit_height
                 else:
                     end_h = hide_sets
-                ret = encoder.hide(mtext, payload_bits, start_h, end_h)
+                ret = encoder.hide(mtext, payload_bits, cbit_height, start_h, end_h)
 
                 tmq.send(ret, block=False, type=1)
                 end_h_hist[counter % 3] = end_h
@@ -88,20 +88,19 @@ class PJStegno:
             logging.info("phone hung up")
             hung_up = 1
             if end_h == hide_sets:
-                return encoder.end_b(end_h)
+                return end_h * num_lsb
             elif end_h > 0:
-                # 16 bit is preamble
-                return encoder.end_b(end_h_hist[(counter - 2)% 3]) - 16
+                return end_h_hist[(counter - 2)% 3] * num_lsb - 16
         finally:
             if not hung_up:
                 rmq.remove()
                 tmq.remove()
                 logging.info("queue removed")
-        return encoder.end_b(end_h)
+        return end_h * num_lsb
 
 class Encoder(ABC):
     @property
-    def cbit_height(self, payloadlen): # how many sets could be hidden in one payload
+    def cbit_height(self): # how many sets could be hidden in one payload
         return self.cbit_height
     
     @abstractmethod
@@ -126,7 +125,7 @@ class LSBEncoder(Encoder):
     def end_h(self, end_b):
         return end_b // self.num_lsb
 
-    def hide(self, carrier, payload_bits, start_h, end_h):
+    def hide(self, carrier, payload_bits, bit_height, start_h, end_h):
         """
         Interleave the payload bits into the num_lsb LSBs of carrier.
 
@@ -138,7 +137,6 @@ class LSBEncoder(Encoder):
         :param end_h: end point of payload to be hidden
         :return: The interleaved bytes
         """
-        bit_height = start_h - end_h
         carrier_bits = np.unpackbits(np.frombuffer(carrier, dtype=np.uint8, count=self.byte_depth * bit_height)
                                 ).reshape(bit_height, 8 * self.byte_depth)
         hides = end_h - start_h
@@ -147,7 +145,6 @@ class LSBEncoder(Encoder):
         else:
             carrier_bits[:, 8 * self.byte_depth - self.num_lsb: 8 * self.byte_depth] = payload_bits[start_h:end_h]
         ret = np.packbits(carrier_bits).tobytes() + carrier[self.byte_depth * bit_height:]
-
         return ret
     
     def reshape_bits(self, payload):
@@ -173,13 +170,11 @@ class LSBEncoder(Encoder):
 
 
 class PhaseEncoder(Encoder):
-    def __init__(self, chunk_size = 160, data_size = 56):
-        self.chunk_size = chunk_size
-        self.data_size = data_size
-        
+    def __init__(self):
+        pass
 
-    def cbit_height(self, _):
-        return self.data_size
+    def cbit_height(self, payloadlen):
+        return 56
 
     def end_h(self, end_b):
         return end_b
@@ -198,9 +193,9 @@ class PhaseEncoder(Encoder):
         hide_sets = len(bitsInPi)
         return bitsInPi, hide_sets
 
-    def hide(self, carrier, payload_bits, start_h, end_h):
+    def hide(self, carrier, payload_bits, _, start_h, end_h):
         dec_one = g711.decode_ulaw(carrier)
-        chunkSize = self.chunk_size
+        chunkSize = 160
         numberOfChunks = int(np.ceil(dec_one.shape[0] / chunkSize))
         audioData = dec_one.copy()
 
@@ -254,23 +249,13 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} filename")
         exit(1)
-    elif len(sys.argv) == 3:
-        if sys.argv[2] == "phase":
-            encoder = PhaseEncoder()
-        elif sys.argv[2] == "lsb":
-            encoder = LSBEncoder(3, 1)
-    elif len(sys.argv) == 5:
-        if sys.argv[2] == "lsb":
-            encoder = LSBEncoder(int(sys.argv[3]), int(sys.argv[4]))
-        elif sys.argv[2] == "phase":
-            encoder = PhaseEncoder(int(sys.argv[3]), int(sys.argv[4]))
-    else:
-        encoder = LSBEncoder(3, 1)
-
 
     logging.basicConfig(level=logging.DEBUG)
-    
-    
+    num_lsb = 3
+    byte_depth = 1
+
     receiver = PJStegno()
+    #encoder = LSBEncoder(num_lsb, byte_depth)
+    encoder = PhaseEncoder()
     receiver.inject_loop(encoder, sys.argv[1])
     
