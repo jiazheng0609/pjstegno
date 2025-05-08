@@ -81,7 +81,7 @@ class PJStegno:
 
 class Decoder(ABC):
     @abstractmethod
-    def hide(self):
+    def extract(self):
         return
 
 class LSBDecoder(Decoder):
