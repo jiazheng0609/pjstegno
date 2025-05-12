@@ -7,8 +7,6 @@ import logging
 from abc import ABC, abstractmethod
 
 class PJStegno:
-    
-
     def recv_and_extract(self, decoder, secret_len):
         KEY = 81
         logging.info(f"{KEY=}")
@@ -61,7 +59,6 @@ class PJStegno:
 
 
     def extract_loop(self, decoder, filename, secret_len):
-        logging.basicConfig(level=logging.DEBUG)
         end_h = 0
         decoded = b''
         secret_byte = bytearray(b'')
@@ -146,7 +143,7 @@ def print_realtime_text(decode_one):
 
 
 if __name__ == '__main__':
-    
+    logging.basicConfig(level=logging.DEBUG)
     receiver = PJStegno()
     #decoder = LSBDecoder(3, 1)
     decoder = QIMDecoder(4)

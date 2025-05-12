@@ -11,7 +11,6 @@ from abc import ABC, abstractmethod
 class PJStegno:
     def inject_loop(self, encoder, secret_filename):
 
-        start_b = 0
         end_b = 0
 
         
@@ -35,7 +34,6 @@ class PJStegno:
         tmq = sysv_ipc.MessageQueue(TKEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
 
         print("rmq id:", rmq.id, "tmq id:", tmq.id)
-        print("ready to receive messages.")
         start_time = time.time()
         counter = 0
         hung_up = 0
@@ -99,19 +97,47 @@ class PJStegno:
 
 class Encoder(ABC):
     @property
-    def cbit_height(self): # how many sets could be hidden in one payload
+    def cbit_height(self): 
+        """how many sets could be hidden in one payload"""
+        
         return self.cbit_height
     
     @abstractmethod
-    def hide(self):
+    def end_h(self, end_b):
+        """convert end_b(end bit) to end_h(end payload set)"""
+        return
+    
+    @abstractmethod
+    def end_b(self, end_h):
+        """convert end_h(end payload set) to end_b(end bit)"""
+        return
+
+    @abstractmethod
+    def hide(self, carrier, payload_bits, bit_height, start_h, end_h):
+        """
+        Interleave the payload bits into a carrier.
+
+        :param carrier: carrier bytes
+        :param payload_bits: bits arranged by reshape_bits()
+        :param start_h: start point of payload to be hidden
+        :param end_h: end point of payload to be hidden
+        :return: encoded bytes
+        """
         return
     
     @abstractmethod
     def reshape_bits(self):
+        """
+        Preprocess of secret information. For example: bytes to bits.
+        """
         return
     
 class LSBEncoder(Encoder):
     def __init__(self, num_lsb, byte_depth):
+        """
+        :param num_lsb: number of least significant bits to use
+        :param byte_depth: byte depth of carrier values
+        """
         self.num_lsb = num_lsb
         self.byte_depth = byte_depth
 
@@ -130,8 +156,6 @@ class LSBEncoder(Encoder):
 
         :param carrier: carrier bytes
         :param payload_bits: bits arranged by reshape_bits()
-        :param num_lsb: number of least significant bits to use
-        :param byte_depth: byte depth of carrier values
         :param start_h: start point of payload to be hidden
         :param end_h: end point of payload to be hidden
         :return: The interleaved bytes
