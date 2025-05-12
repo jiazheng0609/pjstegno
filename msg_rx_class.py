@@ -5,6 +5,7 @@ import sys
 import hashlib
 import logging
 from abc import ABC, abstractmethod
+import configparser
 
 class PJStegno:
     def recv_and_extract(self, decoder, secret_len):
@@ -144,8 +145,17 @@ def print_realtime_text(decode_one):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
+    config = configparser.ConfigParser()
+    config.read('pjstegno.cfg')
+
+    if config['PJStegno']['encoding'] == 'LSB':
+        num_lsb = int(config['LSB']['num_lsb'])
+        byte_depth = int(config['LSB']['byte_depth'])
+        decoder = LSBDecoder(num_lsb, byte_depth)
+    elif config['PJStegno']['encoding'] == 'QIM':
+        delta = float(config['QIM']['delta'])
+        decoder = QIMDecoder(delta)
+
     receiver = PJStegno()
-    #decoder = LSBDecoder(3, 1)
-    decoder = QIMDecoder(4)
     receiver.extract_loop(decoder, "output.txt", 10400)
     

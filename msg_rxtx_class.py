@@ -7,6 +7,7 @@ import hashlib
 import logging
 import g711
 from abc import ABC, abstractmethod
+import configparser
 
 class PJStegno:
     def inject_loop(self, encoder, secret_filename):
@@ -306,17 +307,18 @@ class QIMEncoder(Encoder):
     
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} filename")
-        exit(1)
-
     logging.basicConfig(level=logging.DEBUG)
-    num_lsb = 3
-    byte_depth = 1
+    config = configparser.ConfigParser()
+    config.read('pjstegno.cfg')
+
+    if config['PJStegno']['encoding'] == 'LSB':
+        num_lsb = int(config['LSB']['num_lsb'])
+        byte_depth = int(config['LSB']['byte_depth'])
+        encoder = LSBEncoder(num_lsb, byte_depth)
+    elif config['PJStegno']['encoding'] == 'QIM':
+        delta = float(config['QIM']['delta'])
+        encoder = QIMEncoder(delta)
 
     receiver = PJStegno()
-    #encoder = LSBEncoder(num_lsb, byte_depth)
-    #encoder = PhaseEncoder()
-    encoder = QIMEncoder(4)
-    receiver.inject_loop(encoder, sys.argv[1])
+    receiver.inject_loop(encoder, config['PJStegno']['input_file'])
     
