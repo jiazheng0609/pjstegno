@@ -22,13 +22,13 @@ class PJStegno:
         print("hiding", secret_filename, filelen, "bytes")
 
         while end_b < filelen * 8:
-            end_b = end_b + self.recv_and_hide(filecontent, encoder, 0)
+            end_b = end_b + self.recv_and_hide(filecontent, encoder)
             print(f"Total {filelen*8} bits,  {end_b} hidden, {end_b/(filelen*8)}")
             filecontent = filecontent[end_b // 8:]
 
         print(f"{secret_filename} MD5: {md5val}")
 
-    def recv_and_hide(self, payload, encoder, end_b):
+    def recv_and_hide(self, payload, encoder):
         KEY = 81
         TKEY = 82
         rmq = sysv_ipc.MessageQueue(KEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
@@ -42,17 +42,16 @@ class PJStegno:
         prefix = bytearray(b'\x55\xaa')
         end_h_hist = [0, 0, 0]
         start_h = 0
+        end_h = 0
 
 
-        if end_b != 0:
-            payload = prefix + payload[end_b // 8:] 
-        else:
-            payload = prefix + payload
+        
+        payload = prefix + payload
         payload_bits, hide_sets = encoder.reshape_bits(payload)
 
         print("total", hide_sets, "sets need to be hidden")
 
-        end_h = encoder.end_h(end_b)
+        
 
         try:
             while True:

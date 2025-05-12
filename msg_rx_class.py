@@ -62,13 +62,9 @@ class PJStegno:
 
     def extract_loop(self, decoder, filename, secret_len):
         logging.basicConfig(level=logging.DEBUG)
-        num_lsb = 3
-        byte_depth = 1
-        start_h = 0
         end_h = 0
         decoded = b''
         secret_byte = bytearray(b'')
-        extract_sets = secret_len // num_lsb
 
         while (end_h < secret_len):
             decoded, end_h = self.recv_and_extract(decoder, secret_len)
