@@ -88,15 +88,15 @@ class PJStegno:
             logging.info("phone hung up")
             hung_up = 1
             if end_h == hide_sets:
-                return end_h * num_lsb
+                return encoder.end_b(end_h)
             elif end_h > 0:
-                return end_h_hist[(counter - 2)% 3] * num_lsb - 16
+                return encoder.end_b(end_h_hist[(counter - 2)% 3])  - 16
         finally:
             if not hung_up:
                 rmq.remove()
                 tmq.remove()
                 logging.info("queue removed")
-        return end_h * num_lsb
+        return encoder.end_b(end_h)
 
 class Encoder(ABC):
     @property
@@ -241,8 +241,45 @@ class PhaseEncoder(Encoder):
         return ret
 
 
+class QIMEncoder(Encoder):
+    def __init__(self, delta):
+        self.delta = delta
 
+    def cbit_height(self, payloadlen):
+        return payloadlen
+    
+    def end_b(self, end_h):
+        return end_h
+    
+    def end_h(self, end_b):
+        return end_b
 
+    def reshape_bits(self, payload):
+        plen = len(payload)
+        payload_bits = np.unpackbits(np.frombuffer(payload, dtype=np.uint8, count=plen))
+        payload_bits = payload_bits.astype(np.int8)
+        
+        return payload_bits, len(payload_bits)
+    
+    def embed(self, x, m):
+        x = x.astype(float)
+        d = self.delta
+        y = np.round(x / d) * d + (-1) ** (m+1) * d / 4.
+        return y
+    
+    def hide(self, carrier, payload_bits, bit_height, start_h, end_h):
+        dec_one = np.frombuffer(carrier, dtype=np.int8, count=160)
+        if (end_h - start_h) < bit_height:
+            payload1 = payload_bits[start_h:end_h].copy()
+            m = np.pad(payload1, (0, bit_height-end_h+start_h), 'constant', constant_values=(0,0))
+            m[end_h - start_h:] = 0
+        else:
+            m = payload_bits[start_h:end_h]
+
+        dec_one = self.embed(dec_one, m)
+        ret = bytes(dec_one.astype(np.uint8))
+        
+        return ret 
     
 
 if __name__ == '__main__':
@@ -256,6 +293,7 @@ if __name__ == '__main__':
 
     receiver = PJStegno()
     #encoder = LSBEncoder(num_lsb, byte_depth)
-    encoder = PhaseEncoder()
+    #encoder = PhaseEncoder()
+    encoder = QIMEncoder(4)
     receiver.inject_loop(encoder, sys.argv[1])
     

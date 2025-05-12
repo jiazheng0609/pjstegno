@@ -104,6 +104,37 @@ class LSBDecoder(Decoder):
                                     ).reshape(plen, 8 * self.byte_depth)[:, 8 * self.byte_depth - self.num_lsb: 8 * self.byte_depth]
         return np.packbits(payload_bits).tobytes()
 
+class QIMDecoder(Decoder):
+    def __init__(self, delta):
+        self.delta = delta
+        
+        
+    def embed(self, x, m):
+        x = x.astype(float)
+        d = self.delta
+        y = np.round(x / d) * d + (-1) ** (m+1) * d / 4
+        return y
+    
+    def extract(self, carrier: bytes):
+        z = np.frombuffer(carrier, dtype=np.int8, count=160)
+        m_detected = np.zeros_like(z, dtype=int)
+
+        z0 = self.embed(z, 0)
+        z1 = self.embed(z, 1)
+
+        d0 = np.abs(z - z0)
+        d1 = np.abs(z - z1)
+
+        gen = zip(range(len(z)), d0, d1)
+        for i, dd0, dd1 in gen:
+            if dd0 < dd1:
+                m_detected[i] = 0
+            else:
+                m_detected[i] = 1
+
+        
+        return np.packbits(m_detected).tobytes()
+        
 
 
 def write_file(filename, rcv_bytes):
@@ -119,12 +150,9 @@ def print_realtime_text(decode_one):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} filename size(bytes)")
-        exit(1)
-
-    secret_len = int(sys.argv[2])
+    
     receiver = PJStegno()
-    decoder = LSBDecoder(3, 1)
-    receiver.extract_loop(decoder, sys.argv[1], secret_len)
+    #decoder = LSBDecoder(3, 1)
+    decoder = QIMDecoder(4)
+    receiver.extract_loop(decoder, "output.txt", 10400)
     
