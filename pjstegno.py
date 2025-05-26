@@ -29,6 +29,8 @@ class PJStegno:
         tmq = sysv_ipc.MessageQueue(TKEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
 
         print("rmq id:", rmq.id, "tmq id:", tmq.id)
+        logging.info(f"{rmq.id=}, {tmq.id=}")
+        logging.info("waiting for a call to start...")
         start_time = time.time()
         counter = 0
         hung_up = 0
@@ -104,7 +106,7 @@ class PJStegno:
         logging.info(f"{KEY=}")
         rmq = sysv_ipc.MessageQueue(KEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
         logging.info(f"{rmq.id=}")
-        logging.info("ready to receive messages.")
+        logging.info("waiting for a call to start...")
         start_time = time.time()
         counter = 0
         end_h = 0
@@ -125,7 +127,7 @@ class PJStegno:
                         dec_one = dec_one[pos+len(b'\x55\xaa'):]
                         found_start = 1
                     else:
-                        logging.info("waiting preamble")
+                        logging.info("waiting preamble...")
                         continue
 
                 if print_realtime:
