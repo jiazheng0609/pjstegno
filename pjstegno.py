@@ -28,7 +28,6 @@ class PJStegno:
         rmq = sysv_ipc.MessageQueue(KEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
         tmq = sysv_ipc.MessageQueue(TKEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
 
-        print("rmq id:", rmq.id, "tmq id:", tmq.id)
         logging.info(f"{rmq.id=}, {tmq.id=}")
         logging.info("waiting for a call to start...")
         start_time = time.time()
@@ -75,7 +74,7 @@ class PJStegno:
         except KeyboardInterrupt:
             pass
         except sysv_ipc.ExistentialError:
-            logging.info("phone hung up")
+            logging.debug("phone hung up")
             hung_up = 1
             if end_h == hide_sets:
                 return encoder.end_b(end_h)
@@ -85,7 +84,7 @@ class PJStegno:
             if not hung_up:
                 rmq.remove()
                 tmq.remove()
-                logging.info("queue removed")
+                logging.debug("queue removed")
         return encoder.end_b(end_h)
     
     def extract_loop(self, decoder, filename, secret_len):
@@ -122,12 +121,12 @@ class PJStegno:
                 dec_one = decoder.extract(mtext)
                 if not found_start:
                     if b'\x55\xaa' in dec_one:
-                        logging.info("found preamble")
+                        logging.debug("found preamble")
                         pos = dec_one.find(b'\x55\xaa')
                         dec_one = dec_one[pos+len(b'\x55\xaa'):]
                         found_start = 1
                     else:
-                        logging.info("waiting preamble...")
+                        logging.debug("waiting preamble...")
                         continue
 
                 if print_realtime:
@@ -142,12 +141,12 @@ class PJStegno:
         except KeyboardInterrupt:
             pass
         except sysv_ipc.ExistentialError:
-            logging.info("phone hung up")
+            logging.debug("phone hung up")
             hung_up = 1
         finally:
             if not hung_up:
                 rmq.remove()
-                logging.info("queue removed")
+                logging.debug("queue removed")
 
         return decoded, end_h
 
