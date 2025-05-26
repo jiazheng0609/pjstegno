@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 KEY = 81
 TKEY = 82
-prefix = bytearray(b'\x55\xaa')
+prefix = b'\x55\xaa'
 
 class PJStegno:
     def inject_loop(self, encoder, secret_filename):
@@ -79,7 +79,7 @@ class PJStegno:
             if end_h == hide_sets:
                 return encoder.end_b(end_h)
             elif end_h > 0:
-                return encoder.end_b(end_h_hist[(counter - 2)% 3])  - 16
+                return encoder.end_b(end_h_hist[(counter - 2)% 3])  - len(prefix)*8
         finally:
             if not hung_up:
                 rmq.remove()
@@ -120,10 +120,10 @@ class PJStegno:
 
                 dec_one = decoder.extract(mtext)
                 if not found_start:
-                    if b'\x55\xaa' in dec_one:
+                    if prefix in dec_one:
                         logging.debug("found preamble")
-                        pos = dec_one.find(b'\x55\xaa')
-                        dec_one = dec_one[pos+len(b'\x55\xaa'):]
+                        pos = dec_one.find(prefix)
+                        dec_one = dec_one[pos+len(prefix):]
                         found_start = 1
                     else:
                         logging.debug("waiting preamble...")
