@@ -18,11 +18,14 @@ class PJStegno:
         print("hiding", secret_filename, filelen, "bytes")
 
         while end_b < filelen * 8:
-            end_b = end_b + self.recv_and_hide(filecontent, encoder)
+            end_b, store_time = self.recv_and_hide(filecontent, encoder)
             print(f"Total {filelen*8} bits,  {end_b} hidden, {end_b/(filelen*8)}")
+            
+            
             filecontent = filecontent[end_b // 8:]
 
         print(f"{secret_filename} MD5: {md5val}")
+        write_time_log("python_times.log", store_time)
 
     def recv_and_hide(self, payload, encoder):
         rmq = sysv_ipc.MessageQueue(KEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
@@ -37,6 +40,7 @@ class PJStegno:
         end_h_hist = [0, 0, 0]
         start_h = 0
         end_h = 0
+        store_time = []
 
         payload = prefix + payload
         payload_bits, hide_sets = encoder.reshape_bits(payload)
@@ -46,6 +50,7 @@ class PJStegno:
         try:
             while True:
                 mtext, mtype = rmq.receive(type=1)
+                recv_time = time.monotonic() 
 
                 cbit_height = encoder.cbit_height(len(mtext))
                 start_h = end_h
@@ -54,14 +59,17 @@ class PJStegno:
                 else:
                     end_h = hide_sets
                 ret = encoder.hide(mtext, payload_bits, cbit_height, start_h, end_h)
+                hide_time = time.monotonic() 
 
                 tmq.send(ret, block=False, type=1)
+                send_time = time.monotonic()
                 end_h_hist[counter % 3] = end_h
                 counter = counter + 1
                 end_time = time.time()
                 logging.debug("carrierlen %d start_h %d end_h %d %d bits %.2f firstb %x last %x" % 
                         (cbit_height, start_h, end_h, encoder.end_b(end_h),
                         end_h / hide_sets * 100, ret[0], ret[-1]))
+                store_time.append((recv_time, hide_time, send_time))
                 if end_h == hide_sets:
                     break
 
@@ -77,15 +85,15 @@ class PJStegno:
             logging.debug("phone hung up")
             hung_up = 1
             if end_h == hide_sets:
-                return encoder.end_b(end_h)
+                return encoder.end_b(end_h), store_time
             elif end_h > 0:
-                return encoder.end_b(end_h_hist[(counter - 2)% 3])  - len(prefix)*8
+                return encoder.end_b(end_h_hist[(counter - 2)% 3])  - len(prefix)*8, store_time
         finally:
             if not hung_up:
                 rmq.remove()
                 tmq.remove()
                 logging.debug("queue removed")
-        return encoder.end_b(end_h)
+        return encoder.end_b(end_h), store_time
     
     def extract_loop(self, decoder, filename, secret_len):
         end_h = 0
@@ -196,3 +204,12 @@ def print_realtime_text(decode_one):
         print(text, end='', flush=True)
     except UnicodeDecodeError:
         pass
+
+
+def write_time_log(filename, store_time):
+    """將每次 loop 的 recv_time, hide_time, send_time 寫入檔案"""
+    with open(filename, "w") as logfile:
+        for t in store_time:
+            logfile.write(f"rxp {t[0]}\n")
+            logfile.write(f"enp {t[1]}\n")
+            logfile.write(f"txp {t[2]}\n")
