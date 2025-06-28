@@ -13,15 +13,15 @@ pip install -r requirements.txt
 
 ## How to use
 
-1. Change parameters in `pjstegno.cfg`, copy it to the working directory when executing the script.
+1. Change parameters in `pjstegno.cfg`, copy it to the working directory where you will run the script.
 
 2. For secret message sender, execute `hidedemo.py`.  
    For secret message receiver, execute `extractdemo.py`.  
    You need to start the script before a call started to let the message queue be created; otherwise, PJSIP will not transfer payloads into the message queue.
 
 3. Establish a call in PJSUA.  
-  The sender side should start to hide messages into payloads after caller has received the first RTP message from callee.  
-  The receiver should start to store decoded secret file after it finds the prefix in hiding space.  
+  The sender side should start hiding messages into payloads after caller has received the first RTP message from callee.  
+  The receiver should start storing the decoded secret data after it finds the prefix in hiding space.  
 
 4. Sender: After the secret file is completely transferred and the call has ended, the calculated MD5 value appears on the screen.
   Receiver: After the secret file is completely transferred, the calculated MD5 value appears on the screen.
