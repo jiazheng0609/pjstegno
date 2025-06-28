@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 KEY = 81
 TKEY = 82
-prefix = b'\x55\xaa'
+prefix = b'\x55\x55\x55\x55\x55\x55\x55\xd5'
 
 class PJStegno:
     def inject_loop(self, encoder, secret_filename):
