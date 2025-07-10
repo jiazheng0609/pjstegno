@@ -14,12 +14,15 @@ class PJStegno:
         ifile = open(secret_filename, 'rb')
         filecontent = ifile.read()
         filelen = len(filecontent)
+        total_hidden_b = 0
         md5val = hashlib.md5(filecontent).hexdigest()
         print("hiding", secret_filename, filelen, "bytes")
 
-        while end_b < filelen * 8:
+        while total_hidden_b < filelen * 8:
             end_b, store_time = self.recv_and_hide(filecontent, encoder)
-            print(f"Total {filelen*8} bits,  {end_b} hidden, {end_b/(filelen*8)}")
+            print(f"hide {end_b} bits in this call")
+            total_hidden_b = total_hidden_b + end_b
+            print(f"Total {filelen*8} bits,  {total_hidden_b} hidden, {total_hidden_b/(filelen*8)}%")
             
             
             filecontent = filecontent[end_b // 8:]
@@ -66,7 +69,7 @@ class PJStegno:
                 end_h_hist[counter % 3] = end_h
                 counter = counter + 1
                 end_time = time.time()
-                logging.debug("carrierlen %d start_h %d end_h %d %d bits %.2f firstb %x last %x" % 
+                logging.debug("carrierlen %d start_h %d end_h %d %d bits %.2f%% firstb %x last %x" % 
                         (cbit_height, start_h, end_h, encoder.end_b(end_h),
                         end_h / hide_sets * 100, ret[0], ret[-1]))
                 store_time.append((recv_time, hide_time, send_time))
@@ -87,7 +90,7 @@ class PJStegno:
             if end_h == hide_sets:
                 return encoder.end_b(end_h), store_time
             elif end_h > 0:
-                return encoder.end_b(end_h_hist[(counter - 2)% 3])  - len(prefix)*8, store_time
+                return encoder.end_b(end_h_hist[(counter - 1)% 3])  - len(prefix)*8, store_time
         finally:
             if not hung_up:
                 rmq.remove()
@@ -96,12 +99,12 @@ class PJStegno:
         return encoder.end_b(end_h), store_time
     
     def extract_loop(self, decoder, filename, secret_len):
-        end_h = 0
+        end_b = 0
         decoded = b''
         secret_byte = bytearray(b'')
 
-        while (end_h < secret_len):
-            decoded, end_h = self.recv_and_extract(decoder, secret_len)
+        while (end_b < secret_len):
+            decoded, end_b = self.recv_and_extract(decoder, secret_len, end_b)
             secret_byte.extend(decoded)
 
         write_file(filename, secret_byte[:secret_len])
@@ -109,21 +112,20 @@ class PJStegno:
         md5val = hashlib.md5(secret_byte[:secret_len]).hexdigest()
         print(f"MD5: {md5val}")
 
-    def recv_and_extract(self, decoder, secret_len):
+    def recv_and_extract(self, decoder, secret_len, end_b):
         logging.info(f"{KEY=}")
         rmq = sysv_ipc.MessageQueue(KEY, flags=sysv_ipc.IPC_CREAT, mode=0o660)
         logging.info(f"{rmq.id=}")
         logging.info("waiting for a call to start...")
         start_time = time.time()
         counter = 0
-        end_h = 0
         hung_up = 0
         found_start = 0
         print_realtime = 1
         decoded = b''
 
         try:
-            while end_h < secret_len:
+            while end_b < secret_len:
                 mtext, mtype = rmq.receive(type=1)
 
                 dec_one = decoder.extract(mtext)
@@ -141,11 +143,11 @@ class PJStegno:
                     print_realtime_text(dec_one)
                 decoded = decoded + dec_one
                 cbit_height = len(dec_one)
-                end_h = end_h + cbit_height
+                end_b = end_b + cbit_height
                 
                 end_time = time.time()
 
-                logging.debug(f"{end_time - start_time} {cbit_height} extracted total extract {end_h} byte, {end_h * 8} bit")
+                logging.debug(f"{end_time - start_time} {cbit_height} extracted total extract {end_b} byte, {end_b * 8} bit")
         except KeyboardInterrupt:
             pass
         except sysv_ipc.ExistentialError:
@@ -156,7 +158,7 @@ class PJStegno:
                 rmq.remove()
                 logging.debug("queue removed")
 
-        return decoded, end_h
+        return decoded, end_b
 
 
 class Encoder(ABC):
