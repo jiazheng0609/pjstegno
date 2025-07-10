@@ -23,7 +23,7 @@ pip install -r requirements.txt
   The sender side should start hiding messages into payloads after caller has received the first RTP message from callee.  
   The receiver should start storing the decoded secret data after it finds the prefix in hiding space.  
 
-4. Sender: After the secret file is completely transferred and the call has ended, the calculated MD5 value appears on the screen.
+4. Sender: After the secret file is completely transferred and the call has ended, the calculated MD5 value appears on the screen.  
   Receiver: After the secret file is completely transferred, the calculated MD5 value appears on the screen.
 
 
