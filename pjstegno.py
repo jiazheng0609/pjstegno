@@ -22,7 +22,7 @@ class PJStegno:
             end_b, store_time = self.recv_and_hide(filecontent, encoder)
             print(f"hide {end_b} bits in this call")
             total_hidden_b = total_hidden_b + end_b
-            print(f"Total {filelen*8} bits,  {total_hidden_b} hidden, {total_hidden_b/(filelen*8)}%")
+            print(f"Total {filelen*8} bits,  {total_hidden_b} hidden, {total_hidden_b/(filelen*8) * 100}%")
             
             
             filecontent = filecontent[end_b // 8:]
@@ -70,7 +70,7 @@ class PJStegno:
                 counter = counter + 1
                 end_time = time.time()
                 logging.debug("carrierlen %d start_h %d end_h %d %d bits %.2f%% firstb %x last %x" % 
-                        (cbit_height, start_h, end_h, encoder.end_b(end_h),
+                        (cbit_height, start_h, end_h, encoder.end_b(end_h) - len(prefix)*8,
                         end_h / hide_sets * 100, ret[0], ret[-1]))
                 store_time.append((recv_time, hide_time, send_time))
                 if end_h == hide_sets:
@@ -88,7 +88,7 @@ class PJStegno:
             logging.debug("phone hung up")
             hung_up = 1
             if end_h == hide_sets:
-                return encoder.end_b(end_h), store_time
+                return encoder.end_b(end_h) - len(prefix)*8, store_time
             elif end_h > 0:
                 return encoder.end_b(end_h_hist[(counter - 1)% 3])  - len(prefix)*8, store_time
         finally:
@@ -96,7 +96,7 @@ class PJStegno:
                 rmq.remove()
                 tmq.remove()
                 logging.debug("queue removed")
-        return encoder.end_b(end_h), store_time
+        return encoder.end_b(end_h) - len(prefix)*8, store_time
     
     def extract_loop(self, decoder, filename, secret_len):
         end_b = 0
@@ -147,7 +147,7 @@ class PJStegno:
                 
                 end_time = time.time()
 
-                logging.debug(f"{end_time - start_time} {cbit_height} extracted total extract {end_b} byte, {end_b * 8} bit")
+                logging.debug(f"{end_time - start_time} {cbit_height} extracted total extract {end_b} byte, {end_b * 8} bit, firstb {mtext[0]:x} last {mtext[-1]:x}")
         except KeyboardInterrupt:
             pass
         except sysv_ipc.ExistentialError:
